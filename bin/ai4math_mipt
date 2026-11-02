@@ -1,6 +1,20 @@
 #!/usr/bin/env bash
 # AI4Science entrypoint — алиас для факультатива ОКТЧ МФТИ (ветка MIPT).
-# Форвардит в bin/ai4science (та же cross-platform логика), чтобы эта установка
-# не конфликтовала с командой ai4science, установленной из другой ветки/копии.
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Разворачивает собственный symlink полностью (как bin/ai4science), иначе
+# при вызове через ~/.local/bin/ai4math_mipt HERE посчитается как ~/.local/bin,
+# и если там же лежит чужой symlink `ai4science` (другая установка) — уедем в неё.
+if command -v readlink >/dev/null 2>&1 && readlink -f "${BASH_SOURCE[0]}" >/dev/null 2>&1; then
+    SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+elif command -v greadlink >/dev/null 2>&1; then
+    SELF="$(greadlink -f "${BASH_SOURCE[0]}")"
+else
+    # macOS fallback: no -f in BSD readlink, resolve manually
+    SELF="${BASH_SOURCE[0]}"
+    while [ -L "$SELF" ]; do
+        TARGET="$(readlink "$SELF")"
+        [[ "$TARGET" = /* ]] || TARGET="$(dirname "$SELF")/$TARGET"
+        SELF="$TARGET"
+    done
+fi
+HERE="$(cd "$(dirname "$SELF")" && pwd)"
 exec "$HERE/ai4science" "$@"
