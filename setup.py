@@ -6,9 +6,9 @@
   3. Скачивание Goose CLI закреплённой версии в .tools/
   4. Запуск cli/wizard.py (если .env не существует)
   5. Необязательно: локальный Lean checker в Docker (--with-lean-local, Linux/macOS)
-  6. Команда ai4science: symlink ~/.local/bin/ai4science (Linux/macOS)
+  6. Команда ai4math_mipt: symlink ~/.local/bin/ai4math_mipt (Linux/macOS)
      или папка bin в пользовательском PATH (Windows)
-  7. Проверка: bin/ai4science doctor
+  7. Проверка: bin/ai4math_mipt doctor
 
 Использование:
     python setup.py
@@ -222,12 +222,12 @@ def install_lean_local() -> None:
 
 
 def create_symlink() -> None:
-    target = Path.home() / ".local" / "bin" / "ai4science"
-    source = REPO / "bin" / "ai4science"
+    target = Path.home() / ".local" / "bin" / "ai4math_mipt"
+    source = REPO / "bin" / "ai4math_mipt"
     target.parent.mkdir(parents=True, exist_ok=True)
     if target.is_symlink():
         if target.resolve() == source.resolve():
-            say(f"Команда ai4science: {target} (уже настроена)")
+            say(f"Команда ai4math_mipt: {target} (уже настроена)")
             return
         warn(f"{target} указывал на {target.resolve()} — переключаю на эту установку.")
         target.unlink()
@@ -236,7 +236,7 @@ def create_symlink() -> None:
         return
     try:
         target.symlink_to(source)
-        say(f"Команда ai4science: {target} → {source}")
+        say(f"Команда ai4math_mipt: {target} → {source}")
     except OSError as e:
         warn(f"Symlink не создан: {e}. Запуск: {source}")
         return
@@ -263,16 +263,16 @@ def add_bin_to_user_path() -> None:
             text=True, stderr=subprocess.STDOUT, env=env, timeout=60,
         ).strip()
     except Exception as e:
-        warn(f"PATH не изменён ({type(e).__name__}). Запуск: {bin_dir}\\ai4science.bat")
+        warn(f"PATH не изменён ({type(e).__name__}). Запуск: {bin_dir}\\ai4math_mipt.bat")
         return
     if out.endswith("added"):
-        say(f"Папка {bin_dir} добавлена в пользовательский PATH. Открой новый терминал и запускай: ai4science")
+        say(f"Папка {bin_dir} добавлена в пользовательский PATH. Открой новый терминал и запускай: ai4math_mipt")
     else:
-        say(f"Папка {bin_dir} уже есть в пользовательском PATH. Команда: ai4science")
+        say(f"Папка {bin_dir} уже есть в пользовательском PATH. Команда: ai4math_mipt")
 
 
 def run_doctor(py: Path) -> None:
-    say("Проверка: bin/ai4science doctor ...")
+    say("Проверка: bin/ai4math_mipt doctor ...")
     rc = subprocess.call([str(py), str(REPO / "bin" / "ai4science.py"), "doctor"])
     if rc != 0:
         die("doctor завершился с ошибкой — установка не завершена.", rc)
@@ -307,7 +307,7 @@ def main() -> int:
         install_lean_local()
     else:
         say("используется удалённый сервис (LEAN_CHECKER_URL в .env)")
-    say("[7/7] команда ai4science и проверка")
+    say("[7/7] команда ai4math_mipt и проверка")
     if IS_WINDOWS:
         if args.no_path:
             warn(f"PATH не менялся (--no-path). Запуск: {REPO}\\bin\\ai4science.bat")
@@ -321,15 +321,15 @@ def main() -> int:
     print()
     say("Готово. Запуск:")
     if IS_WINDOWS:
-        print("    ai4science                      интерактивная сессия (в новом терминале)")
-        print('    ai4science run "промпт"         одна задача')
-        print("    ai4science doctor               проверка окружения")
-        print(f"    без PATH: {REPO}\\bin\\ai4science.bat")
+        print("    ai4math_mipt                      интерактивная сессия (в новом терминале)")
+        print('    ai4math_mipt run "промпт"         одна задача')
+        print("    ai4math_mipt doctor               проверка окружения")
+        print(f"    без PATH: {REPO}\\bin\\ai4math_mipt.bat")
     else:
-        print("    ai4science                      интерактивная сессия")
-        print('    ai4science run "промпт"         одна задача')
-        print("    ai4science doctor               проверка окружения")
-    print("\nМодели: ai4science models; смена модели в сессии: /model <алиас>; все команды: /help")
+        print("    ai4math_mipt                      интерактивная сессия")
+        print('    ai4math_mipt run "промпт"         одна задача')
+        print("    ai4math_mipt doctor               проверка окружения")
+    print("\nМодели: ai4math_mipt models; смена модели в сессии: /model <алиас>; все команды: /help")
     print("Удаление: README.md, раздел «Удаление»")
     print("Документация: README.md, docs/ARCHITECTURE.md")
     return 0

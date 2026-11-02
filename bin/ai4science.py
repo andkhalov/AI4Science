@@ -3,20 +3,20 @@
 
   * находит корень репозитория по расположению этого файла
   * читает `.env` (стандартная библиотека, без зависимостей)
-  * собирает окружение Goose: провайдер openai → Yandex AI Studio
+  * собирает окружение Goose: провайдер openai → шлюз из ENDPOINT/.env (OpenAI-формат)
   * парсит `recipes/ai4science.yaml`: instructions → временный файл системного
     промпта; extensions → флаги `--with-builtin` / `--with-extension`
   * поднимает локальный token proxy (учёт расхода токенов, суточный лимит)
   * запускает `goose session|run`
 
 Использование:
-    ai4science                          интерактивная сессия
-    ai4science -m <alias|slug>          другая модель Yandex AI Studio
-    ai4science --mode approve           режим подтверждения инструментов
-    ai4science run "промпт"             одна задача и выход
-    ai4science doctor                   проверка окружения
-    ai4science models                   модели и их алиасы
-    ai4science --help                   справка
+    ai4math_mipt                          интерактивная сессия
+    ai4math_mipt -m <alias|slug>          другая модель шлюза
+    ai4math_mipt --mode approve           режим подтверждения инструментов
+    ai4math_mipt run "промпт"             одна задача и выход
+    ai4math_mipt doctor                   проверка окружения
+    ai4math_mipt models                   модели и их алиасы
+    ai4math_mipt --help                   справка
 """
 from __future__ import annotations
 
@@ -80,7 +80,7 @@ REPO = HERE.parent
 sys.path.insert(0, str(REPO / "src"))
 from ai4science_models import (  # noqa: E402  каталог моделей общий с src/token_proxy.py
     CATALOG, COMPACT_AT_TOKENS, DEFAULT_CONTEXT, DEFAULT_MODEL, DEFAULT_PLANNER, MAX_OUTPUT_TOKENS,
-    MODEL_ALIASES, MODEL_CONTEXT, context_for, format_context, model_uri, resolve_model,
+    MODEL_ALIASES, MODEL_CONTEXT, context_for, format_context, resolve_model,
 )
 RECIPE_FILE = REPO / "recipes" / "ai4science.yaml"
 ENV_FILE = REPO / ".env"
@@ -88,7 +88,6 @@ IS_WINDOWS = sys.platform == "win32"
 GOOSE_BIN = REPO / ".tools" / ("goose.exe" if IS_WINDOWS else "goose")
 VENV_PY = REPO / ".venv" / ("Scripts" if IS_WINDOWS else "bin") / ("python.exe" if IS_WINDOWS else "python")
 
-YANDEX_HOST = "https://llm.api.cloud.yandex.net"
 # Данные Goose (сессии, журналы, история ввода) — внутри папки агента:
 # удаление папки не оставляет следов, настройки отдельного Goose не затрагиваются.
 GOOSE_HOME = REPO / ".goose"
@@ -119,14 +118,12 @@ def load_env(path: Path) -> dict[str, str]:
 
 def apply_env(env: dict[str, str]) -> None:
     """Значения из .env → os.environ (уже заданные переменные важнее).
-    Совместимость с .env версии 1.x: YANDEX_AI_API, AI4MATH_MODEL."""
+    Совместимость с .env версии 1.x: AI4MATH_* → AI4SCIENCE_*."""
     for k, v in env.items():
         os.environ.setdefault(k, v)
     migrate_legacy_env()
-    if not os.environ.get("YANDEX_CLOUD_API_KEY") and os.environ.get("YANDEX_AI_API"):
-        os.environ["YANDEX_CLOUD_API_KEY"] = os.environ["YANDEX_AI_API"]
-    if not os.environ.get("YANDEX_CLOUD_MODEL") and os.environ.get("AI4SCIENCE_MODEL"):
-        os.environ["YANDEX_CLOUD_MODEL"] = os.environ["AI4SCIENCE_MODEL"]
+    if not os.environ.get("MODEL") and os.environ.get("AI4SCIENCE_MODEL"):
+        os.environ["MODEL"] = os.environ["AI4SCIENCE_MODEL"]
 
 
 # ---------- recipe ----------
@@ -263,13 +260,13 @@ def banner(model_slug: str, context_limit: int, goose_mode: str, lean: str, toke
     ИИ-ассистент исследователя
     Инференс  →  Контекст  →  Верификация
   ─────────────────────────────────────────────────────────────
-    Модель:    {model_slug} (Yandex AI Studio)
+    Модель:    {model_slug} (OpenAI-совместимый шлюз)
     Контекст:  {ctx} токенов, сжатие истории при {compact_at_k}k
     Режим:     {goose_mode}
     Lean 4:    {lean}
     Бюджет:    {tokens_used:,} / {DAILY_TOKEN_LIMIT:,} токенов сегодня
   ─────────────────────────────────────────────────────────────
-    Курс ШАД «ИИ-ассистенты для исследователя. AI4Science»
+    Факультатив ОКТЧ МФТИ 2026
     Модель:    /model <алиас> — {aliases}
     Команды:   /status  /mode <режим>  /plan <задача>  /compact  /help  /exit
 """)
@@ -282,12 +279,13 @@ def doctor() -> None:
     if not ENV_FILE.exists():
         print("Запусти setup.bat / ./setup.sh или скопируй .env.example в .env")
         sys.exit(1)
-    api_key = env.get("YANDEX_CLOUD_API_KEY") or env.get("YANDEX_AI_API", "")
-    print(f"YANDEX_CLOUD_API_KEY: {'задан' if api_key else 'ПУСТО'} ({len(api_key)} символов)")
-    print(f"YANDEX_CLOUD_FOLDER: {env.get('YANDEX_CLOUD_FOLDER') or 'ПУСТО'}")
-    model = resolve_model(env.get("YANDEX_CLOUD_MODEL") or env.get("AI4SCIENCE_MODEL") or env.get("AI4MATH_MODEL", ""))
+    api_key = env.get("KEY", "")
+    print(f"KEY: {'задан' if api_key else 'ПУСТО'} ({len(api_key)} символов)")
+    print(f"ENDPOINT: {env.get('ENDPOINT') or 'ПУСТО'}")
+    model = resolve_model(env.get("MODEL") or env.get("AI4SCIENCE_MODEL") or env.get("AI4MATH_MODEL", ""))
     print(f"модель: {model}")
-    print(f"модель для /plan: {resolve_model(env.get('YANDEX_PLANNER_MODEL') or DEFAULT_PLANNER)}")
+    planner = env.get("PLANNER_MODEL", DEFAULT_PLANNER)
+    print(f"модель для /plan: {'off' if planner.lower() == 'off' else resolve_model(planner)}")
     print(f"данные Goose (сессии, журналы): {os.environ.get('GOOSE_PATH_ROOT') or GOOSE_HOME}")
     print(f"ОС: {sys.platform}, Python {sys.version.split()[0]}")
     if GOOSE_BIN.exists():
@@ -328,55 +326,55 @@ def doctor() -> None:
 
 
 def print_models(current: str = "") -> None:
-    print("Модели Yandex AI Studio: алиас, модель, окно контекста")
+    print("Модели шлюза (ENDPOINT из .env): алиас, id модели, окно контекста")
     for alias, slug, ctx, note in CATALOG:
         mark = "*" if slug == current else " "
         print(f"  {mark} {alias:<12} {slug:<28} {format_context(ctx):>5}  {note}")
     print(f"""
-  * модель по умолчанию из .env (YANDEX_CLOUD_MODEL)
+  * модель по умолчанию из .env (MODEL)
 
-При запуске:  ai4science -m <алиас>      например: ai4science -m qwen235
-В сессии:     /model <алиас>             например: /model deepseek
-              /model                     текущая модель;  /status — модель, режим, контекст
-Принимаются также slug (deepseek-v4-flash/latest) и полный URI (gpt://<folder>/...).
+При запуске:  ai4math_mipt -m <алиас>      например: ai4math_mipt -m local-agent
+В сессии:     /model <алиас>               например: /model local-agent
+              /model                       текущая модель;  /status — модель, режим, контекст
+Принимается также произвольный id модели шлюза.
 История сжимается при ~{COMPACT_AT_TOKENS // 1000}k токенов для любой модели списка.""")
 
 
 def usage() -> None:
-    print(f"""AI4Science — консольный агент курса ШАД «ИИ-ассистенты для исследователя. AI4Science».
+    print(f"""AI4Science — консольный агент факультатива ОКТЧ МФТИ 2026.
 
 Использование:
-    ai4science [опции]               интерактивная сессия
-    ai4science run "<промпт>"        одна задача, вывод в консоль, выход
-    ai4science doctor                проверка окружения
-    ai4science models                модели и их алиасы
-    ai4science --help                эта справка
+    ai4math_mipt [опции]               интерактивная сессия
+    ai4math_mipt run "<промпт>"        одна задача, вывод в консоль, выход
+    ai4math_mipt doctor                проверка окружения
+    ai4math_mipt models                модели и их алиасы
+    ai4math_mipt --help                эта справка
 
 Опции:
-    -m, --model <alias|slug>  модель Yandex AI Studio. По умолчанию из .env
-                              (YANDEX_CLOUD_MODEL) или {DEFAULT_MODEL}.
+    -m, --model <alias|id>    модель шлюза (ENDPOINT из .env). По умолчанию из .env
+                              (MODEL) или {DEFAULT_MODEL}.
                               Алиасы: {', '.join(MODEL_ALIASES)}
     --mode <name>             режим Goose: smart_approve (по умолчанию в сессии),
                               auto (по умолчанию в run), approve, chat
     --no-lean                 отключить инструменты Lean
 
 Команды в сессии:
-    /model [алиас]     показать или сменить модель: /model qwen235, /model deepseek
+    /model [алиас]     показать или сменить модель: /model local-agent
     /status            модель, режим, расход токенов, заполнение контекста
     /mode <режим>      auto | smart_approve | approve | chat
-    /plan <задача>     план через модель планирования (YANDEX_PLANNER_MODEL)
+    /plan <задача>     план через модель планирования (PLANNER_MODEL; off — отключено)
     /compact           сжать историю; /clear — очистить, /new — новая сессия
     /help              все команды; /exit — выход
 
 Переменные окружения (.env):
-    YANDEX_CLOUD_API_KEY, YANDEX_CLOUD_FOLDER, YANDEX_CLOUD_MODEL, YANDEX_PLANNER_MODEL
+    KEY, ENDPOINT, MODEL, PLANNER_MODEL (off — отключить модель планирования)
     LEAN_CHECKER_URL, BRAVE_API_KEY
     AI4SCIENCE_QUIET=1, AI4SCIENCE_NOCOLOR=1, AI4SCIENCE_SKIP_PREFLIGHT=1
     AI4SCIENCE_LEAN_DISABLED=1, AI4SCIENCE_WEB_DISABLED=1, AI4SCIENCE_SKILLS_DIR
     AI4SCIENCE_DAILY_TOKEN_LIMIT (по умолчанию 3 000 000)
     GOOSE_CONTEXT_LIMIT, GOOSE_MAX_TOKENS, GOOSE_AUTO_COMPACT_THRESHOLD
     GOOSE_PATH_ROOT (данные Goose; по умолчанию <папка агента>/.goose)
-Переменные версии 1.x (AI4MATH_*, YANDEX_AI_API) принимаются как запасные.
+Переменные версии 1.x (AI4MATH_*) принимаются как запасные.
 """)
 
 
@@ -418,7 +416,7 @@ def main(argv: list[str]) -> int:
             return 0
         if a == "models":
             env = load_env(ENV_FILE)
-            print_models(resolve_model(env.get("YANDEX_CLOUD_MODEL") or env.get("AI4SCIENCE_MODEL", "")))
+            print_models(resolve_model(env.get("MODEL") or env.get("AI4SCIENCE_MODEL", "")))
             return 0
         if a == "run":
             mode = "run"
@@ -437,23 +435,32 @@ def main(argv: list[str]) -> int:
         die(f"нет файла {ENV_FILE} — запусти setup.bat / ./setup.sh или скопируй .env.example")
     apply_env(load_env(ENV_FILE))
 
-    folder = os.environ.get("YANDEX_CLOUD_FOLDER", "")
-    api_key = os.environ.get("YANDEX_CLOUD_API_KEY", "")
-    if not folder or not api_key:
-        die("YANDEX_CLOUD_API_KEY или YANDEX_CLOUD_FOLDER не заданы в .env")
-    model_slug = resolve_model(model_arg or os.environ.get("YANDEX_CLOUD_MODEL", ""))
+    api_key = os.environ.get("KEY", "")
+    endpoint = os.environ.get("ENDPOINT", "")
+    if not api_key or not endpoint:
+        die("KEY или ENDPOINT не заданы в .env")
+    model_slug = resolve_model(model_arg or os.environ.get("MODEL", ""))
     context_limit = int(os.environ.get("GOOSE_CONTEXT_LIMIT", str(context_for(model_slug))))
+
+    # ENDPOINT обычно оканчивается на /v1 (OpenAI-совместимый шлюз). Goose
+    # склеивает OPENAI_HOST + OPENAI_BASE_PATH в полный URL запроса, поэтому
+    # суффикс /v1 переносим из host в base path.
+    host = endpoint.rstrip("/")
+    base_path = "/chat/completions"
+    if host.endswith("/v1"):
+        host = host[: -len("/v1")]
+        base_path = "/v1/chat/completions"
 
     goose_env = os.environ.copy()
     goose_env["GOOSE_PROVIDER"] = "openai"
-    goose_env["OPENAI_HOST"] = YANDEX_HOST
-    goose_env["OPENAI_BASE_PATH"] = "/v1/chat/completions"
+    goose_env["OPENAI_HOST"] = host
+    goose_env["OPENAI_BASE_PATH"] = base_path
     goose_env["OPENAI_API_KEY"] = api_key
-    goose_env["GOOSE_MODEL"] = f"gpt://{folder}/{model_slug}"
-    planner = os.environ.get("YANDEX_PLANNER_MODEL", DEFAULT_PLANNER)
+    goose_env["GOOSE_MODEL"] = model_slug
+    planner = os.environ.get("PLANNER_MODEL", DEFAULT_PLANNER)
     if planner and planner.lower() != "off":
         goose_env.setdefault("GOOSE_PLANNER_PROVIDER", "openai")
-        goose_env.setdefault("GOOSE_PLANNER_MODEL", f"gpt://{folder}/{resolve_model(planner)}")
+        goose_env.setdefault("GOOSE_PLANNER_MODEL", resolve_model(planner))
     goose_env["GOOSE_CONTEXT_LIMIT"] = str(context_limit)
     # Одна точка сжатия для всех моделей каталога: после /model окно не пересчитывается.
     goose_env.setdefault("GOOSE_AUTO_COMPACT_THRESHOLD", f"{min(0.8, COMPACT_AT_TOKENS / context_limit):.3f}")
@@ -481,7 +488,7 @@ def main(argv: list[str]) -> int:
             print(
                 f"{RED}[ai4science]{RESET} MCP pre-flight FAIL: {perr}\n"
                 f"{RED}[ai4science]{RESET} Goose не загрузит расширение ai4science — инструменты вернут -32002.\n"
-                f"{RED}[ai4science]{RESET} Диагностика: ai4science doctor. Переустановка: удалить .venv и .tools, запустить setup.\n"
+                f"{RED}[ai4science]{RESET} Диагностика: ai4math_mipt doctor. Переустановка: удалить .venv и .tools, запустить setup.\n"
                 f"{RED}[ai4science]{RESET} Пропустить проверку: AI4SCIENCE_SKIP_PREFLIGHT=1",
                 file=sys.stderr,
             )
@@ -499,8 +506,7 @@ def main(argv: list[str]) -> int:
     proxy_py = REPO / "src" / "token_proxy.py"
     py_for_proxy = str(VENV_PY) if VENV_PY.exists() else sys.executable
     proxy_proc = subprocess.Popen(
-        [py_for_proxy, str(proxy_py), "--upstream", YANDEX_HOST, "--limit", str(DAILY_TOKEN_LIMIT),
-         "--folder", folder],
+        [py_for_proxy, str(proxy_py), "--upstream", host, "--limit", str(DAILY_TOKEN_LIMIT)],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
     )
     proxy_port_line = ""
@@ -523,7 +529,7 @@ def main(argv: list[str]) -> int:
         cmd += ["session", "--no-profile"] + ext_args
     else:
         if not positional:
-            die("ai4science run: нужен текст промпта")
+            die("ai4math_mipt run: нужен текст промпта")
         # --no-session: одноразовый запуск без записи в базу сессий Goose
         # (автоматизация, CI; исключает конфликт схемы с сессиями старых версий).
         cmd += ["run", "--no-profile", "--no-session"] + ext_args + ["-t", " ".join(positional)]

@@ -6,26 +6,27 @@
 ![Linux](https://img.shields.io/badge/Linux-supported-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
-Консольный агент курса ШАД «ИИ-ассистенты для исследователя. AI4Science»
-(осень 2026). Авторы: А. П. Халов, О. М. Атаева — ФИЦ ИУ РАН, МФТИ, ШАД Яндекса.
+Агент создан для факультатива «ИИ для математики» (сопровождение ОКТЧ),
+МФТИ, 2026. Авторы: А. П. Халов, О. М. Атаева — ФИЦ ИУ РАН, МФТИ.
+Эта ветка (`MIPT`) — параллельная установка курсового агента AI4Science с
+другим бекендом инференса; с основной веткой не объединяется.
 
 AI4Science — открытая обёртка над агентом [Goose](https://github.com/aaif-goose/goose)
-с инференсом через Yandex AI Studio. Агент работает в папке проекта
-пользователя: выполняет команды, пишет и запускает код, читает PDF, ищет в
-сети, проверяет доказательства на Lean 4 и ищет леммы в Mathlib. Инструменты
-подключены через один MCP-сервер.
+с инференсом через произвольный OpenAI-совместимый шлюз (`ENDPOINT` в `.env`).
+Агент работает в папке проекта пользователя: выполняет команды, пишет и
+запускает код, читает PDF, ищет в сети, проверяет доказательства на Lean 4 и
+ищет леммы в Mathlib. Инструменты подключены через один MCP-сервер.
 
-Версия 2.0 заменяет AI4Math 1.x: команда `ai4science`, актуальные модели
-Yandex AI Studio, установка в Windows без WSL. Переход со старой версии — в
-разделе [«Обновление с AI4Math 1.x»](#обновление-с-ai4math-1x), удаление без
-следов в системе — в разделе [«Удаление»](#удаление).
+Команда этой установки — `ai4math_mipt` (отдельный системный алиас, чтобы не
+конфликтовать с `ai4science` из основной ветки). Удаление без следов в
+системе — в разделе [«Удаление»](#удаление).
 
 ---
 
 ## Установка
 
-Нужны Python 3.10 или новее и git. Ключ Yandex AI Studio и folder id выдаются
-на курсе.
+Нужны Python 3.10 или новее и git. Ключ, адрес (`ENDPOINT`) и модель
+OpenAI-совместимого шлюза выдаются на факультативе.
 
 ### Windows 10/11
 
@@ -43,12 +44,12 @@ setup.bat
 После установки откройте новый терминал:
 
 ```powershell
-ai4science                     # интерактивная сессия
-ai4science run "промпт"        # одна задача и выход
-ai4science doctor              # проверка окружения
+ai4math_mipt                     # интерактивная сессия
+ai4math_mipt run "промпт"        # одна задача и выход
+ai4math_mipt doctor              # проверка окружения
 ```
 
-Без изменения PATH: `setup.bat --no-path`, запуск — `bin\ai4science.bat`.
+Без изменения PATH: `setup.bat --no-path`, запуск — `bin\ai4math_mipt.bat`.
 
 Если Python не установлен: <https://www.python.org/downloads/windows/>
 (отметить «Add python.exe to PATH») или `winget install -e --id Python.Python.3.12`.
@@ -72,18 +73,18 @@ git clone https://github.com/andkhalov/AI4Science.git && cd AI4Science && ./setu
 
 На Debian/Ubuntu `setup.sh` сам доставляет `bzip2`, `libgomp1` и
 `python3-venv`, если есть права root или sudo без пароля. Команда
-`ai4science` создаётся как symlink в `~/.local/bin`; эта папка должна быть в
+`ai4math_mipt` создаётся как symlink в `~/.local/bin`; эта папка должна быть в
 PATH.
 
-### Ключ Yandex AI Studio
+### Ключ шлюза
 
-Мастер `cli/wizard.py` спрашивает ключ, folder id и модель по умолчанию и
-записывает `.env`. Для автоматической установки достаточно задать переменные
-окружения до запуска установщика:
+Мастер `cli/wizard.py` спрашивает ключ, адрес (`ENDPOINT`) и модель по
+умолчанию и записывает `.env`. Для автоматической установки достаточно
+задать переменные окружения до запуска установщика:
 
 ```bash
-export YANDEX_CLOUD_API_KEY=...
-export YANDEX_CLOUD_FOLDER=b1g...
+export KEY=...
+export ENDPOINT=https://.../v1
 ./setup.sh
 ```
 
@@ -95,11 +96,11 @@ export YANDEX_CLOUD_FOLDER=b1g...
 
 | Команда | Действие |
 |---|---|
-| `ai4science` | интерактивная сессия |
-| `ai4science run "<промпт>"` | одна задача, вывод в консоль, выход |
-| `ai4science models` | модели, их алиасы и окна контекста |
-| `ai4science doctor` | проверка: ключ, Goose, `.venv`, MCP-сервер, Lean checker, бюджет |
-| `ai4science --help` | справка |
+| `ai4math_mipt` | интерактивная сессия |
+| `ai4math_mipt run "<промпт>"` | одна задача, вывод в консоль, выход |
+| `ai4math_mipt models` | модели, их алиасы и окна контекста |
+| `ai4math_mipt doctor` | проверка: ключ, Goose, `.venv`, MCP-сервер, Lean checker, бюджет |
+| `ai4math_mipt --help` | справка |
 
 | Флаг | Значение |
 |---|---|
@@ -120,7 +121,7 @@ export YANDEX_CLOUD_FOLDER=b1g...
 | `/model <алиас>` | сменить модель; история сессии сохраняется: `/model qwen235`, `/model deepseek` |
 | `/status` | модель, режим, расход токенов, заполнение контекста |
 | `/mode <режим>` | `auto`, `smart_approve`, `approve`, `chat` |
-| `/plan <задача>` | план через модель планирования (`YANDEX_PLANNER_MODEL`); `/endplan` — выход из режима плана |
+| `/plan <задача>` | план через модель планирования (`PLANNER_MODEL`; по умолчанию `off`); `/endplan` — выход из режима плана |
 | `/compact` | сжать историю сессии |
 | `/clear` | очистить историю |
 | `/new` | новая сессия в том же процессе |
@@ -130,43 +131,38 @@ export YANDEX_CLOUD_FOLDER=b1g...
 
 ### Модели
 
-| Алиас | Модель Yandex AI Studio | Окно контекста | Назначение |
+| Алиас | Id модели у шлюза | Окно контекста | Назначение |
 |---|---|---|---|
-| `qwen` | `qwen3.6-35b-a3b/latest` | 256k | модель по умолчанию |
-| `qwen235` | `qwen3-235b-a22b-fp8/latest` | 256k | модель для `/plan`; точнее и дороже |
-| `deepseek` | `deepseek-v4-flash/latest` | 1M | альтернатива для сравнения |
-| `gptoss` | `gpt-oss-120b/latest` | 128k | короткие цепочки инструментов |
-| `junior` | `gpt-oss-20b/latest` | 128k | экономия суточного лимита |
+| `ai-pro` | `ai-pro` | 1M | модель по умолчанию |
+| `local-agent` | `samcs-gpu/local-agent` | 1M | альтернатива для сравнения |
 
-Окна контекста — по документации Yandex AI Studio; тот же список печатает
-`ai4science models`.
+Список моделей ограничен тем, что реально отдаёт `GET {ENDPOINT}/models` для
+ключа из `.env`; тот же список печатает `ai4math_mipt models`.
 
 ### Смена модели
 
-- По умолчанию — `YANDEX_CLOUD_MODEL` в `.env`.
-- На одну сессию — флаг при запуске: `ai4science -m qwen235`.
-- Внутри сессии — `/model deepseek`. История сохраняется, следующий ответ даёт
-  новая модель; `/model` без аргумента показывает текущую.
+- По умолчанию — `MODEL` в `.env`.
+- На одну сессию — флаг при запуске: `ai4math_mipt -m local-agent`.
+- Внутри сессии — `/model local-agent`. История сохраняется, следующий ответ
+  даёт новая модель; `/model` без аргумента показывает текущую.
 
-Принимаются алиас, slug (`deepseek-v4-flash/latest`) и полный URI
-(`gpt://<folder>/deepseek-v4-flash/latest`): локальный прокси подставляет
-folder id сам.
+Принимаются алиас или произвольный id модели у шлюза — локальный прокси
+подставляет полный id по алиасу сам.
 
 - История сжимается при ~100k токенов для любой модели списка. После `/model`
-  Goose не пересчитывает окно контекста, поэтому история вместе с ответом
-  должна помещаться в самое короткое окно списка (128k). `/status` показывает
-  окно модели, с которой запущена сессия.
-- `/plan` всегда использует модель планирования `YANDEX_PLANNER_MODEL`.
-- Вызов инструментов проверен 14.09.2026 (Goose 1.50) для всех моделей списка
-  на задаче «создать файл через инструмент». Длинные цепочки вызовов на
-  `gptoss` и `junior` не проверялись; при сбое вернитесь к `/model qwen`.
+  Goose не пересчитывает окно контекста.
+- `/plan` использует модель планирования `PLANNER_MODEL`; по умолчанию `off`
+  (отдельная модель для планирования не задана).
+- Вызов инструментов проверен для `ai-pro` на задаче «создать файл через
+  инструмент» (см. раздел «Разработка и тесты»); `local-agent` — ризонинг-модель,
+  для коротких лимитов `max_tokens` может не успеть дойти до ответа.
 
 ### Переменные окружения
 
 | Переменная | Значение |
 |---|---|
-| `YANDEX_CLOUD_API_KEY`, `YANDEX_CLOUD_FOLDER` | доступ к Yandex AI Studio |
-| `YANDEX_CLOUD_MODEL`, `YANDEX_PLANNER_MODEL` | модель по умолчанию и модель для `/plan` (`off` — отключить) |
+| `KEY`, `ENDPOINT` | ключ и адрес (с `/v1`) OpenAI-совместимого шлюза |
+| `MODEL`, `PLANNER_MODEL` | модель по умолчанию и модель для `/plan` (`off` — отключить, значение по умолчанию) |
 | `LEAN_CHECKER_URL` | адрес Lean checker (по умолчанию `https://scilibai.ru/grag`) |
 | `BRAVE_API_KEY` | поиск через Brave вместо DuckDuckGo |
 | `AI4SCIENCE_DAILY_TOKEN_LIMIT` | суточный лимит токенов (по умолчанию 3 000 000) |
@@ -207,12 +203,13 @@ markdown, lean, literature, debug-loop), которые агент подгру�
 
 ## Суточный лимит токенов
 
-Локальный прокси между Goose и Yandex AI Studio считает `usage.total_tokens`
-каждого ответа и записывает итог в `~/.ai4science_budget.json`. При
-исчерпании лимита новая сессия не запускается, текущая останавливается.
-Остаток показывают баннер, `ai4science doctor` и инструмент `token_budget`.
-Счётчик обнуляется в полночь по местному времени. Тот же прокси подставляет
-полный URI модели, если в запросе короткое имя.
+Локальный прокси между Goose и шлюзом (`ENDPOINT` из `.env`) считает
+`usage.total_tokens` каждого ответа и записывает итог в
+`~/.ai4science_budget.json`. При исчерпании лимита новая сессия не
+запускается, текущая останавливается. Остаток показывают баннер,
+`ai4math_mipt doctor` и инструмент `token_budget`. Счётчик обнуляется в
+полночь по местному времени. Тот же прокси подставляет id модели по алиасу,
+если в запросе короткое имя.
 
 ---
 
@@ -230,11 +227,10 @@ rm -rf .venv .tools          # Windows: Remove-Item -Recurse -Force .venv, .tool
   старый адрес перенаправляется на новый.
 - Команда `ai4math` заменена на `ai4science`. Старый symlink
   `~/.local/bin/ai4math` установщик не трогает; удалить его можно вручную.
-- `.env` версии 1.x продолжает работать: `YANDEX_AI_API` читается вместо
-  `YANDEX_CLOUD_API_KEY`, `AI4MATH_*` — вместо `AI4SCIENCE_*`. Модель
-  `deepseek-v32` больше не обслуживается; новые имена моделей — в таблице выше.
-- Ключи из старого `.env` можно перенести в новый формат через мастер:
-  удалить `.env` и запустить установщик.
+- `AI4MATH_*` версии 1.x принимается как запасное имя для `AI4SCIENCE_*`.
+  Ключ и модель версии 1.x (`YANDEX_CLOUD_API_KEY` и т. п.) в этой ветке не
+  читаются: бекенд инференса здесь — OpenAI-совместимый шлюз (`KEY`,
+  `ENDPOINT`, `MODEL` в `.env`), формат `.env` другой — см. `.env.example`.
 
 ## Удаление
 
@@ -243,7 +239,7 @@ rm -rf .venv .tools          # Windows: Remove-Item -Recurse -Force .venv, .tool
 | Что | Где |
 |---|---|
 | код, `.venv`, Goose (`.tools`), ключ (`.env`), сессии и журналы Goose (`.goose`), локальный Lean checker (`vendor/`) | папка агента, созданная `git clone` |
-| команда `ai4science` | macOS и Linux: symlink `~/.local/bin/ai4science`; Windows: папка `<агент>\bin` в пользовательской переменной PATH |
+| команда `ai4math_mipt` | macOS и Linux: symlink `~/.local/bin/ai4math_mipt`; Windows: папка `<агент>\bin` в пользовательской переменной PATH |
 | счётчик токенов | `~/.ai4science_budget.json` (Windows: `%USERPROFILE%\.ai4science_budget.json`) |
 
 Python, git и системные пакеты, поставленные для установки, не удаляются: ими
@@ -259,10 +255,10 @@ cd AI4Science                    # папка агента
 ( cd vendor/lean-checker && docker compose down --rmi all --volumes )
 cd ..
 rm -rf AI4Science
-rm -f ~/.local/bin/ai4science ~/.ai4science_budget.json
+rm -f ~/.local/bin/ai4math_mipt ~/.ai4science_budget.json
 ```
 
-Проверка в новом терминале: `command -v ai4science` ничего не выводит.
+Проверка в новом терминале: `command -v ai4math_mipt` ничего не выводит.
 
 ### Windows (PowerShell)
 
@@ -277,7 +273,7 @@ Remove-Item -Recurse -Force AI4Science
 Remove-Item -Force "$env:USERPROFILE\.ai4science_budget.json" -ErrorAction SilentlyContinue
 ```
 
-Проверка в новом терминале: `where.exe ai4science` сообщает, что файл не найден.
+Проверка в новом терминале: `where.exe ai4math_mipt` сообщает, что файл не найден.
 
 ### Следы AI4Math 1.x
 
@@ -313,13 +309,14 @@ AI4Science/
 ├── requirements.txt                  зависимости Python
 ├── .env.example                      шаблон .env
 ├── bin/
-│   ├── ai4science, ai4science.bat    команда для Linux/macOS и Windows
+│   ├── ai4math_mipt, ai4math_mipt.bat команда (алиас) для Linux/macOS и Windows
+│   ├── ai4science, ai4science.bat    исходный shim, к которому форвардит алиас
 │   ├── ai4science.py                 точка входа: окружение Goose, прокси, doctor
 │   └── ai4science-mcp[.bat]          запуск MCP-сервера
 ├── src/
 │   ├── ai4science_mcp.py             MCP-сервер с инструментами
-│   ├── ai4science_models.py          каталог моделей: алиасы, окна контекста, URI
-│   └── token_proxy.py                учёт токенов, суточный лимит, полный URI модели
+│   ├── ai4science_models.py          каталог моделей: алиасы, окна контекста
+│   └── token_proxy.py                учёт токенов, суточный лимит, id модели по алиасу
 ├── recipes/ai4science.yaml           системные инструкции агента и список расширений
 ├── cli/wizard.py                     мастер настройки .env
 ├── skills/                           руководства по темам
@@ -336,7 +333,6 @@ AI4Science/
 - [andkhalov/lean-checker](https://github.com/andkhalov/lean-checker) — локальный Lean checker в Docker.
 - [Goose](https://github.com/aaif-goose/goose) — агент, на котором построена обёртка.
 - [Model Context Protocol](https://modelcontextprotocol.io/) — протокол подключения инструментов.
-- [Yandex AI Studio](https://yandex.cloud/ru/docs/ai-studio) — OpenAI-совместимый доступ к моделям.
 
 ## Лицензия и цитирование
 

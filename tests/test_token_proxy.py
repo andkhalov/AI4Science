@@ -1,4 +1,4 @@
-"""src/token_proxy.py: подстановка полного URI модели и пересылка запроса без сети."""
+"""src/token_proxy.py: подстановка id модели по алиасу и пересылка запроса без сети."""
 from __future__ import annotations
 
 import importlib.util
@@ -27,31 +27,24 @@ def _body(**kw) -> bytes:
 
 
 @pytest.mark.parametrize("model, expected", [
-    ("qwen235", "gpt://b1f/qwen3-235b-a22b-fp8/latest"),
-    ("deepseek", "gpt://b1f/deepseek-v4-flash/latest"),
-    ("junior", "gpt://b1f/gpt-oss-20b/latest"),
-    ("deepseek-v4-flash/latest", "gpt://b1f/deepseek-v4-flash/latest"),
-    ("gpt-oss-20b", "gpt://b1f/gpt-oss-20b/latest"),
+    ("ai-pro", "ai-pro"),
+    ("local-agent", "samcs-gpu/local-agent"),
+    ("some-custom-model", "some-custom-model"),
 ])
-def test_rewrite_model_short_names(proxy, model, expected):
-    out = json.loads(proxy.rewrite_model(_body(model=model, messages=[{"role": "user", "content": "привет"}]), "b1f"))
+def test_rewrite_model_aliases(proxy, model, expected):
+    out = json.loads(proxy.rewrite_model(_body(model=model, messages=[{"role": "user", "content": "привет"}])))
     assert out["model"] == expected
     assert out["messages"][0]["content"] == "привет"
 
 
-def test_rewrite_keeps_full_uri_byte_for_byte(proxy):
-    body = _body(model="gpt://b1x/qwen3.6-35b-a3b/latest", messages=[])
-    assert proxy.rewrite_model(body, "b1f") == body
+def test_rewrite_keeps_unknown_model_byte_for_byte(proxy):
+    body = _body(model="samcs-gpu/local-agent", messages=[])
+    assert proxy.rewrite_model(body) == body
 
 
 @pytest.mark.parametrize("body", [b"", b"not json", b"[1, 2]", _body(input="x"), _body(model="")])
 def test_rewrite_ignores_other_bodies(proxy, body):
-    assert proxy.rewrite_model(body, "b1f") == body
-
-
-def test_rewrite_without_folder_is_noop(proxy):
-    body = _body(model="deepseek")
-    assert proxy.rewrite_model(body, "") == body
+    assert proxy.rewrite_model(body) == body
 
 
 def test_proxy_forwards_rewritten_request(proxy, monkeypatch):
@@ -76,13 +69,12 @@ def test_proxy_forwards_rewritten_request(proxy, monkeypatch):
     upstream = HTTPServer(("127.0.0.1", 0), Upstream)
     threading.Thread(target=upstream.serve_forever, daemon=True).start()
     monkeypatch.setattr(proxy, "UPSTREAM", f"http://127.0.0.1:{upstream.server_address[1]}")
-    monkeypatch.setattr(proxy, "FOLDER", "b1f")
     server = HTTPServer(("127.0.0.1", 0), proxy.ProxyHandler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     try:
         req = Request(
             f"http://127.0.0.1:{server.server_address[1]}/v1/chat/completions",
-            data=_body(model="junior", messages=[{"role": "user", "content": "длинный текст " * 20}]),
+            data=_body(model="local-agent", messages=[{"role": "user", "content": "длинный текст " * 20}]),
             headers={"Content-Type": "application/json", "Authorization": "Bearer test"},
             method="POST",
         )
@@ -91,7 +83,7 @@ def test_proxy_forwards_rewritten_request(proxy, monkeypatch):
         server.shutdown()
         upstream.shutdown()
     assert out["choices"][0]["message"]["content"] == "ok"
-    assert seen["body"]["model"] == "gpt://b1f/gpt-oss-20b/latest"
+    assert seen["body"]["model"] == "samcs-gpu/local-agent"
     assert seen["path"] == "/v1/chat/completions"
     assert seen["auth"] == "Bearer test"
     assert proxy._get_used() == 7

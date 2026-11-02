@@ -32,12 +32,12 @@ def wizard():
 def test_load_env_handles_quotes_and_comments(cli, tmp_path):
     p = tmp_path / ".env"
     p.write_text(
-        "# comment\n\nYANDEX_CLOUD_API_KEY=abc\nTOKEN=\"id|hash=with=equals\"\n"
+        "# comment\n\nKEY=abc\nTOKEN=\"id|hash=with=equals\"\n"
         "SINGLE='q'\nNOEQ\nSPACED = v \n",
         encoding="utf-8",
     )
     env = cli.load_env(p)
-    assert env["YANDEX_CLOUD_API_KEY"] == "abc"
+    assert env["KEY"] == "abc"
     assert env["TOKEN"] == "id|hash=with=equals"
     assert env["SINGLE"] == "q"
     assert env["SPACED"] == "v"
@@ -50,28 +50,18 @@ def test_load_env_missing_file(cli, tmp_path):
 
 def test_resolve_model_aliases(cli):
     assert cli.resolve_model("") == cli.DEFAULT_MODEL
-    assert cli.resolve_model("qwen") == "qwen3.6-35b-a3b/latest"
-    assert cli.resolve_model("qwen235") == "qwen3-235b-a22b-fp8/latest"
-    assert cli.resolve_model("deepseek") == "deepseek-v4-flash/latest"
-    assert cli.resolve_model("gpt-oss") == "gpt-oss-120b/latest"
-    assert cli.resolve_model("yandexgpt-5.1") == "yandexgpt-5.1/latest"
-    assert cli.resolve_model("deepseek-v4-flash/latest") == "deepseek-v4-flash/latest"
+    assert cli.resolve_model("ai-pro") == "ai-pro"
+    assert cli.resolve_model("local-agent") == "samcs-gpu/local-agent"
+    assert cli.resolve_model("some-custom-model") == "some-custom-model"
+    for alias, slug, _, _ in cli.CATALOG:
+        assert cli.resolve_model(alias) == slug
 
 
 def test_context_for(cli):
-    assert cli.context_for("qwen3-235b-a22b-fp8/latest") == 262_144
-    assert cli.context_for("gpt-oss-20b/latest") == 131_072
-    assert cli.context_for("unknown-model/latest") == cli.DEFAULT_CONTEXT
+    assert cli.context_for("ai-pro") == 1_048_576
+    assert cli.context_for("unknown-model") == cli.DEFAULT_CONTEXT
     assert cli.format_context(262_144) == "256k" and cli.format_context(1_048_576) == "1M"
 
-
-def test_model_aliases_and_uri(cli):
-    assert cli.resolve_model("junior") == "gpt-oss-20b/latest"
-    assert cli.model_uri("b1f", "deepseek") == "gpt://b1f/deepseek-v4-flash/latest"
-    assert cli.model_uri("b1f", "gpt-oss-20b/latest") == "gpt://b1f/gpt-oss-20b/latest"
-    assert cli.model_uri("b1f", "gpt://b1x/qwen3.6-35b-a3b/latest") == "gpt://b1x/qwen3.6-35b-a3b/latest"
-    for alias, slug, _, _ in cli.CATALOG:
-        assert cli.resolve_model(alias) == slug
 
 def test_compaction_fits_smallest_window(cli):
     """После /model окно не пересчитывается: история + ответ помещаются в любое окно каталога."""
@@ -83,27 +73,25 @@ def test_models_command_lists_aliases():
     rc = subprocess.run([sys.executable, str(REPO / "bin" / "ai4science.py"), "models"],
                         capture_output=True, text=True, encoding="utf-8")
     assert rc.returncode == 0
-    for alias in ("qwen", "qwen235", "deepseek", "gptoss", "junior"):
+    for alias in ("ai-pro", "local-agent"):
         assert alias in rc.stdout
     assert "/model" in rc.stdout
 
 
 def test_apply_env_legacy_names(cli, monkeypatch):
-    for k in ("YANDEX_CLOUD_API_KEY", "YANDEX_AI_API", "YANDEX_CLOUD_MODEL",
-              "AI4SCIENCE_MODEL", "AI4MATH_MODEL", "AI4SCIENCE_QUIET", "AI4MATH_QUIET"):
+    for k in ("KEY", "MODEL", "AI4SCIENCE_MODEL", "AI4MATH_MODEL", "AI4SCIENCE_QUIET", "AI4MATH_QUIET"):
         monkeypatch.delenv(k, raising=False)
-    cli.apply_env({"YANDEX_AI_API": "legacy-key", "AI4MATH_MODEL": "qwen235", "AI4MATH_QUIET": "1"})
+    cli.apply_env({"AI4MATH_MODEL": "local-agent", "AI4MATH_QUIET": "1"})
     import os
-    assert os.environ["YANDEX_CLOUD_API_KEY"] == "legacy-key"
     assert os.environ["AI4SCIENCE_QUIET"] == "1"
-    assert cli.resolve_model(os.environ["YANDEX_CLOUD_MODEL"]) == "qwen3-235b-a22b-fp8/latest"
+    assert cli.resolve_model(os.environ["MODEL"]) == "samcs-gpu/local-agent"
 
 
 def test_apply_env_new_names_win(cli, monkeypatch):
-    monkeypatch.setenv("YANDEX_CLOUD_API_KEY", "from-shell")
-    cli.apply_env({"YANDEX_CLOUD_API_KEY": "from-env-file", "YANDEX_AI_API": "legacy"})
+    monkeypatch.setenv("KEY", "from-shell")
+    cli.apply_env({"KEY": "from-env-file"})
     import os
-    assert os.environ["YANDEX_CLOUD_API_KEY"] == "from-shell"
+    assert os.environ["KEY"] == "from-shell"
 
 
 def test_build_goose_ext_args(cli):
@@ -141,8 +129,8 @@ def test_help_runs():
                         capture_output=True, text=True, encoding="utf-8")
     assert rc.returncode == 0
     assert "AI4Science" in rc.stdout
-    assert "ai4science run" in rc.stdout
-    assert "/model" in rc.stdout and "ai4science models" in rc.stdout
+    assert "ai4math_mipt run" in rc.stdout
+    assert "/model" in rc.stdout and "ai4math_mipt models" in rc.stdout
 
 
 def test_doctor_without_env_exits_1(cli, tmp_path, monkeypatch):
@@ -164,13 +152,13 @@ def test_probe_mcp_lists_tools(cli):
 def test_wizard_non_interactive(wizard, tmp_path, monkeypatch):
     env_file = tmp_path / ".env"
     monkeypatch.setattr(wizard, "ENV_FILE", env_file)
-    monkeypatch.setenv("YANDEX_CLOUD_API_KEY", "k" * 40)
-    monkeypatch.setenv("YANDEX_CLOUD_FOLDER", "b1test")
+    monkeypatch.setenv("KEY", "k" * 40)
+    monkeypatch.setenv("ENDPOINT", "https://example.invalid/v1")
     monkeypatch.setenv("AI4SCIENCE_WIZARD_NONINTERACTIVE", "1")
-    monkeypatch.delenv("YANDEX_CLOUD_MODEL", raising=False)
+    monkeypatch.delenv("MODEL", raising=False)
     assert wizard.main() == 0
     text = env_file.read_text(encoding="utf-8")
-    assert "YANDEX_CLOUD_API_KEY=" + "k" * 40 in text
-    assert "YANDEX_CLOUD_FOLDER=b1test" in text
-    assert f"YANDEX_CLOUD_MODEL={wizard.DEFAULT_MODEL}" in text
+    assert "KEY=" + "k" * 40 in text
+    assert "ENDPOINT=https://example.invalid/v1" in text
+    assert f"MODEL={wizard.DEFAULT_MODEL}" in text
     assert "LEAN_CHECKER_URL=" in text

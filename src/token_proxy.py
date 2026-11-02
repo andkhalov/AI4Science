@@ -1,15 +1,15 @@
-"""Lightweight token-counting proxy between Goose and Yandex AI Studio.
+"""Lightweight token-counting proxy between Goose and the OpenAI-compatible gateway.
 
-Sits on localhost, forwards all requests to the real Yandex endpoint,
-parses usage from responses (including SSE streaming), and blocks new
-requests when the daily budget is exceeded.
+Sits on localhost, forwards all requests to the real upstream endpoint
+(ENDPOINT in .env), parses usage from responses (including SSE streaming),
+and blocks new requests when the daily budget is exceeded.
 
-A short model name in the request body (`qwen235`, `deepseek`,
-`deepseek-v4-flash/latest`) is replaced by the full URI `gpt://<folder>/<slug>`,
-so `/model <alias>` works inside a Goose session.
+A short model alias in the request body (catalog in ai4science_models.py)
+is replaced by the gateway's model id, so `/model <alias>` works inside a
+Goose session.
 
 Usage (from bin/ai4science.py — auto-started, not user-facing):
-    python src/token_proxy.py [--port PORT] [--upstream URL] [--limit N] [--folder FOLDER]
+    python src/token_proxy.py [--port PORT] [--upstream URL] [--limit N]
 
 The proxy writes daily totals to ~/.ai4science_budget.json and reads it
 back on startup so budget survives process restarts.
@@ -28,7 +28,7 @@ from urllib.request import Request, urlopen
 from urllib.error import HTTPError
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from ai4science_models import model_uri  # noqa: E402
+from ai4science_models import resolve_model  # noqa: E402
 
 # Windows: консоль по умолчанию cp1252/cp866 — принудительно UTF-8 для кириллицы.
 if sys.platform == "win32":
@@ -43,10 +43,9 @@ for _k, _v in list(os.environ.items()):
     if _k.startswith("AI4MATH_"):
         os.environ.setdefault("AI4SCIENCE_" + _k[len("AI4MATH_"):], _v)
 
-UPSTREAM = os.environ.get("AI4SCIENCE_UPSTREAM", "https://llm.api.cloud.yandex.net")
+UPSTREAM = os.environ.get("AI4SCIENCE_UPSTREAM", os.environ.get("ENDPOINT", ""))
 DAILY_LIMIT = int(os.environ.get("AI4SCIENCE_DAILY_TOKEN_LIMIT", "3000000"))
 BUDGET_FILE = Path.home() / ".ai4science_budget.json"
-FOLDER = os.environ.get("YANDEX_CLOUD_FOLDER", "")
 
 _lock = threading.Lock()
 _today: str = ""
@@ -96,10 +95,10 @@ def _get_used() -> int:
         return _used
 
 
-def rewrite_model(body: bytes, folder: str) -> bytes:
-    """Короткое имя модели в JSON-запросе → полный URI `gpt://<folder>/<slug>`.
-    Запросы с полным URI, без поля model или не в JSON проходят без изменений."""
-    if not folder or not body:
+def rewrite_model(body: bytes) -> bytes:
+    """Короткий алиас модели в JSON-запросе → id модели у шлюза (каталог в ai4science_models.py).
+    Запросы без поля model или не в JSON проходят без изменений."""
+    if not body:
         return body
     try:
         data = json.loads(body)
@@ -110,10 +109,10 @@ def rewrite_model(body: bytes, folder: str) -> bytes:
     model = data.get("model")
     if not isinstance(model, str) or not model.strip():
         return body
-    uri = model_uri(folder, model)
-    if uri == model:
+    resolved = resolve_model(model)
+    if resolved == model:
         return body
-    data["model"] = uri
+    data["model"] = resolved
     return json.dumps(data, ensure_ascii=False).encode("utf-8")
 
 
@@ -144,7 +143,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
 
         content_len = int(self.headers.get("Content-Length", 0))
         req_body = self.rfile.read(content_len) if content_len else b""
-        req_body = rewrite_model(req_body, FOLDER)
+        req_body = rewrite_model(req_body)
 
         url = f"{UPSTREAM}{self.path}"
         # Content-Length пересчитывает urllib: после подстановки URI длина тела другая.
@@ -216,19 +215,17 @@ class ProxyHandler(BaseHTTPRequestHandler):
 
 
 def main():
-    global UPSTREAM, DAILY_LIMIT, FOLDER
+    global UPSTREAM, DAILY_LIMIT
 
     import argparse
     p = argparse.ArgumentParser()
     p.add_argument("--port", type=int, default=0)
     p.add_argument("--upstream", default=UPSTREAM)
     p.add_argument("--limit", type=int, default=DAILY_LIMIT)
-    p.add_argument("--folder", default=FOLDER)
     args = p.parse_args()
 
     UPSTREAM = args.upstream
     DAILY_LIMIT = args.limit
-    FOLDER = args.folder
 
     server = HTTPServer(("127.0.0.1", args.port), ProxyHandler)
     port = server.server_address[1]

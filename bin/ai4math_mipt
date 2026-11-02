@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# AI4Science entrypoint — алиас для факультатива ОКТЧ МФТИ (ветка MIPT).
+# Форвардит в bin/ai4science (та же cross-platform логика), чтобы эта установка
+# не конфликтовала с командой ai4science, установленной из другой ветки/копии.
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec "$HERE/ai4science" "$@"
