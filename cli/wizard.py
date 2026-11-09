@@ -125,12 +125,7 @@ def main() -> int:
     if endpoint and not endpoint.startswith("http"):
         print(f"  {YELLOW}ENDPOINT обычно начинается с 'http(s)://'. Продолжаю.{RESET}")
     model = ask_choice("Модель по умолчанию", MODELS, default=0)
-    print()
-    print("  Lean checker: по умолчанию используется удалённый сервис курса.")
-    print("  Для локального варианта: http://localhost:8888 и ./setup.sh --with-lean-local.")
-    lean_url = ask("LEAN_CHECKER_URL", default=DEFAULT_LEAN_URL)
-    brave = ask("BRAVE_API_KEY (Enter — пропустить, будет DuckDuckGo)", default="")
-    write_env(api_key, endpoint, model, lean_url, brave)
+    write_env(api_key, endpoint, model)
     print()
     print(f"  {GREEN}[ok]{RESET} .env записан: {ENV_FILE}")
     print(f"  Модель: {BOLD}{model}{RESET}")
