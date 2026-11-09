@@ -28,10 +28,15 @@ AI4Science — открытая обёртка над агентом [Goose](htt
 Нужны Python 3.10 или новее и git. Ключ, адрес (`ENDPOINT`) и модель
 OpenAI-совместимого шлюза выдаются на факультативе.
 
+Эта инструкция — для ветки `MIPT` (эта версия, с OpenAI-бекендом). Без
+`-b MIPT` при клонировании `git clone` возьмёт ветку по умолчанию (`main`,
+старый бекенд Yandex AI Studio). Если репозиторий уже клонирован без флага:
+`git checkout MIPT` внутри папки репозитория перед `setup.sh`/`setup.bat`.
+
 ### Windows 10/11
 
 ```powershell
-git clone https://github.com/andkhalov/AI4Science.git
+git clone -b MIPT https://github.com/andkhalov/AI4Science.git
 cd AI4Science
 setup.bat
 ```
@@ -68,7 +73,7 @@ wsl --install -d Ubuntu
 ### macOS и Linux
 
 ```bash
-git clone https://github.com/andkhalov/AI4Science.git && cd AI4Science && ./setup.sh
+git clone -b MIPT https://github.com/andkhalov/AI4Science.git && cd AI4Science && ./setup.sh
 ```
 
 На Debian/Ubuntu `setup.sh` сам доставляет `bzip2`, `libgomp1` и
@@ -218,7 +223,8 @@ markdown, lean, literature, debug-loop), которые агент подгру�
 ```bash
 cd AI4Math                   # папка установки 1.x
 git remote set-url origin https://github.com/andkhalov/AI4Science.git
-git pull
+git fetch origin
+git checkout MIPT            # эта версия (OpenAI-бекенд); без этого git pull возьмёт main
 rm -rf .venv .tools          # Windows: Remove-Item -Recurse -Force .venv, .tools
 ./setup.sh                   # Windows: setup.bat
 ```
