@@ -1,5 +1,21 @@
 # Changelog
 
+## MIPT — 2026-11-26
+
+### Added
+
+- Literature and knowledge-graph tools in the main MCP server (module
+  `src/research_mcp.py`, ported from the YSDA course agent):
+  `openalex_search`, `openalex_work`, `openalex_links` (works, authors and
+  citations in OpenAlex), `wikidata_search`, `wikidata_sparql` (read-only
+  SPARQL). Every answer carries `provenance`; the optional
+  `OPENALEX_API_KEY` never appears in tool output.
+- Recipe: section on literature tools; skill `literature` starts with
+  OpenAlex, `web_search` is the fallback.
+- `doctor` reports whether an OpenAlex key is set.
+- Tests: `tests/test_research_mocked.py` (no network) and a live
+  `openalex_work` check in `tests/test_network.py`.
+
 ## v2.0.0 — 2026-09-14
 
 **AI4Science** — second release. The agent is renamed from AI4Math and adapted

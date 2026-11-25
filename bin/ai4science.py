@@ -318,6 +318,8 @@ def doctor() -> None:
         if tools is not None:
             print(f"  получено: {tools}")
     print(f"lean-checker: {lean_status(lean_url, timeout=3)}")
+    openalex_key = env.get("OPENALEX_API_KEY") or env.get("OPEN_ALEX")
+    print(f"OpenAlex: ключ {'задан' if openalex_key else 'не задан (меньший суточный лимит)'}")
 
     used = _today_token_usage()
     print(f"бюджет: {used:,} / {DAILY_TOKEN_LIMIT:,} (осталось {max(0, DAILY_TOKEN_LIMIT - used):,})")

@@ -15,7 +15,7 @@ AI4Science — открытая обёртка над агентом [Goose](htt
 с инференсом через произвольный OpenAI-совместимый шлюз (`ENDPOINT` в `.env`).
 Агент работает в папке проекта пользователя: выполняет команды, пишет и
 запускает код, читает PDF, ищет в сети, проверяет доказательства на Lean 4 и
-ищет леммы в Mathlib. Инструменты подключены через один MCP-сервер.
+ищет леммы в Mathlib, научные работы в OpenAlex и сущности в Wikidata. Инструменты подключены через один MCP-сервер.
 
 Команда этой установки — `ai4math_mipt` (отдельный системный алиас, чтобы не
 конфликтовать с `ai4science` из основной ветки). Удаление без следов в
@@ -170,6 +170,7 @@ export ENDPOINT=https://.../v1
 | `MODEL`, `PLANNER_MODEL` | модель по умолчанию и модель для `/plan` (`off` — отключить, значение по умолчанию) |
 | `LEAN_CHECKER_URL` | адрес Lean checker (по умолчанию `https://scilibai.ru/grag`) |
 | `BRAVE_API_KEY` | поиск через Brave вместо DuckDuckGo |
+| `OPENALEX_API_KEY` | ключ OpenAlex (необязателен; без ключа суточный лимит меньше), в ответы инструментов не попадает |
 | `AI4SCIENCE_DAILY_TOKEN_LIMIT` | суточный лимит токенов (по умолчанию 3 000 000) |
 | `AI4SCIENCE_QUIET=1`, `AI4SCIENCE_NOCOLOR=1` | без баннера, без цвета |
 | `AI4SCIENCE_LEAN_DISABLED=1`, `AI4SCIENCE_WEB_DISABLED=1` | отключить группы инструментов |
@@ -191,9 +192,11 @@ export ENDPOINT=https://.../v1
 | Поиск по Mathlib | `lean_search_scilib` (граф зависимостей Mathlib), `lean_search_loogle`, `lean_search_leansearch`, `lean_search_moogle`, `lean_search_engines` |
 | Сеть | `web_search`, `web_fetch` |
 | PDF | `pdf_download`, `pdf_info`, `pdf_read`, `pdf_search` |
+| Литература и графы знаний | `openalex_search`, `openalex_work`, `openalex_links` — работы, авторы и цитирования в OpenAlex; `wikidata_search`, `wikidata_sparql` — сущности Wikidata и запросы SPARQL (только `SELECT` и `ASK`) |
 | Служебные | `list_skills`, `load_skill`, `load_artifact`, `token_budget` |
 
-Большие ответы инструментов возвращаются как фрагмент и идентификатор
+Ответы OpenAlex и Wikidata содержат поле `provenance` (источник, запрос, дата) и
+не усекаются. Остальные большие ответы инструментов возвращаются как фрагмент и идентификатор
 артефакта; полный текст загружается через `load_artifact` только при
 необходимости. Skills — короткие руководства в `skills/*.md` (python, latex,
 markdown, lean, literature, debug-loop), которые агент подгружает по теме

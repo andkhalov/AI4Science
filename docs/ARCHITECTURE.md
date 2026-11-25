@@ -33,13 +33,14 @@
              │                  │
 ┌────────────▼──────────┐  ┌────▼──────────────────────────────────┐
 │ 4a. Yandex AI Studio  │  │ 4b. src/ai4science_mcp.py                │
-│     /v1/chat/compl    │  │     FastMCP("ai4science") — 13 tools     │
+│     /v1/chat/compl    │  │     FastMCP("ai4science") — 22 tools     │
 │     qwen / deepseek / │  │       lean_check, lean_health         │
 │     gpt-oss           │  │       lean_search_scilib  ⭐ primary  │
 └───────────────────────┘  │       lean_search_loogle/leansearch/  │
                            │         moogle + _engines             │
                            │       web_search, web_fetch           │
                            │       pdf_info/read/search            │
+                           │       openalex_*, wikidata_*          │
                            └────┬──────────────────────────────────┘
                                 │ HTTPS (для большинства инструментов)
   ┌────────────┬────────┬───────┼──────────┬───────────┬───────────┐
@@ -113,7 +114,7 @@ instructions: |
 
 ### 3. src/ai4science_mcp.py — единый MCP сервер
 
-`FastMCP("ai4science")` с 15 инструментами, stdio транспорт. Запускается Goose'ом через `bin/ai4science-mcp`.
+`FastMCP("ai4science")` с 22 инструментами, stdio транспорт. Запускается Goose'ом через `bin/ai4science-mcp`.
 
 **Skills — modular on-demand loading** (2):
 
@@ -151,6 +152,16 @@ Project-specific skills can be added as additional `.md` files in the skills dir
 - `pdf_read(path, pages, max_chars)` — extract text по 1-indexed спеку `"1-5,10"`
 - `pdf_search(path, query, context)` — подстрочный поиск
 
+**Литература и графы знаний** (5) — модуль `src/research_mcp.py`, регистрируется в этом же сервере; стандартная библиотека (urllib), повторы при 429 и 5xx не дольше 10 с:
+
+- `openalex_search(query, year_from, year_to, work_type, open_access, sort, limit)` — работы в OpenAlex, до 25 записей
+- `openalex_work(work)` — полная запись по W… или DOI: авторы с организациями, аннотация, открытые версии
+- `openalex_links(work, relation)` — `references`, `cited_by`, `related`
+- `wikidata_search(text, language)` — идентификаторы Q…
+- `wikidata_sparql(query)` — только SELECT и ASK
+
+Каждый ответ содержит `provenance` (источник, запрос без ключа, дата) и не усекается.
+
 **Env-toggles**:
 
 - `AI4SCIENCE_LEAN_DISABLED=1` — `lean_check` / `lean_health` возвращают "disabled"
@@ -166,6 +177,8 @@ Project-specific skills can be added as additional `.md` files in the skills dir
 - **Loogle** — `https://loogle.lean-lang.org/json?q=...`
 - **LeanSearch** — `https://leansearch.net/search` POST
 - **Moogle** — `https://www.moogle.ai/api/search` POST
+- **OpenAlex** — `https://api.openalex.org/works` GET; ключ `OPENALEX_API_KEY` необязателен
+- **Wikidata** — `https://www.wikidata.org/w/api.php` (поиск сущностей), `https://query.wikidata.org/sparql` (SPARQL)
 
 ---
 
@@ -181,7 +194,7 @@ Project-specific skills can be added as additional `.md` files in the skills dir
 6. Goose:
    - читает `GOOSE_SYSTEM_PROMPT_FILE_PATH` → загружает instructions
    - запускает stdio подпроцесс `bin/ai4science-mcp` (Python + FastMCP), ждёт `initialize` ответ
-   - регистрирует 13 инструментов MCP + 3 builtin `developer` инструмента в tool schema
+   - регистрирует 22 инструмента MCP + 3 builtin `developer` инструмента в tool schema
    - открывает интерактивный REPL
 
 ### Каждый turn

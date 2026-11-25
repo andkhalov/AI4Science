@@ -86,3 +86,13 @@ def test_lean_search_engines_live_reports_status(m):
     out = m.lean_search_engines()
     for engine in ("loogle", "leansearch", "moogle", "scilib"):
         assert engine in out
+
+
+def test_openalex_work_live():
+    import json
+    import research_mcp
+    out = json.loads(research_mcp.openalex_work("10.1021/ed061p494"))
+    if "error" in out and any(w in out["error"] for w in ("URLError", "timed out", "429")):
+        pytest.skip(f"OpenAlex недоступен: {out['error'][:80]}")
+    assert out["work"]["year"] == 1984
+    assert out["provenance"]["source"] == "OpenAlex"

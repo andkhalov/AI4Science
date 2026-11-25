@@ -17,6 +17,13 @@ Tools (Goose namespace: `ai4science`):
     web_search(query, n)             Brave (if API key) or DuckDuckGo
     web_fetch(url, max_chars)        GET + HTML→text + truncate
 
+  Literature graphs (module research_mcp)
+    openalex_search(query, ...)      works in OpenAlex: filters by year, type, open access
+    openalex_work(work)              full record of one work (W… or DOI), abstract
+    openalex_links(work, relation)   references / cited_by / related in OpenAlex
+    wikidata_search(text)            entity ids (Q…) in Wikidata
+    wikidata_sparql(query)           read-only SPARQL (SELECT, ASK) to Wikidata
+
   PDF
     pdf_info(path)                   metadata, pages, size
     pdf_read(path, pages, max_chars) extract text from page range
@@ -47,6 +54,7 @@ The tool routes automatically: URL containing `/grag` → new schema, else old.
   LOOGLE_URL        https://loogle.lean-lang.org
   MOOGLE_URL        https://www.moogle.ai
   BRAVE_API_KEY     optional, enables Brave Search API instead of DuckDuckGo
+  OPENALEX_API_KEY  optional, larger daily limit of OpenAlex (never echoed in tool output)
 
   AI4SCIENCE_LEAN_DISABLED=1  disable lean_check/lean_health
   AI4SCIENCE_WEB_DISABLED=1   disable web_search/web_fetch
@@ -896,6 +904,19 @@ def pdf_search(path: str, query: str, context: int = 120) -> str:
     if not hits:
         return f"«{query}» не найдено в {p}"
     return _maybe_trim("pdf_search", f"{len(hits)} совпадений:\n" + "\n".join(hits))
+
+
+# ---------- OpenAlex и Wikidata ----------
+# Инструменты модуля research_mcp регистрируются в этом же сервере. Ответы не усекаются:
+# в них поле provenance и выходные данные, которые переносятся в заметки без изменений.
+
+RESEARCH_TOOLS = ("openalex_search", "openalex_work", "openalex_links", "wikidata_search", "wikidata_sparql")
+try:
+    import research_mcp as _research
+    for _name in RESEARCH_TOOLS:
+        mcp.tool()(getattr(_research, _name))
+except Exception as _e:  # сервер работает и без модуля: Lean, Mathlib, сеть, PDF
+    print(f"research_mcp не подключён: {type(_e).__name__}: {_e}", file=sys.stderr)
 
 
 if __name__ == "__main__":

@@ -145,7 +145,8 @@ def test_probe_mcp_lists_tools(cli):
     tools, err = cli.probe_mcp(env_vars={"AI4SCIENCE_LEAN_DISABLED": "1"}, timeout=30)
     assert err == "", err
     assert tools is not None and len(tools) >= cli.MIN_TOOLS
-    for name in ("lean_check", "web_search", "pdf_read", "load_skill", "token_budget"):
+    for name in ("lean_check", "web_search", "pdf_read", "load_skill", "token_budget", "openalex_search",
+                 "wikidata_sparql"):
         assert name in tools
 
 
